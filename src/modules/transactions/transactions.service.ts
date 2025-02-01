@@ -21,7 +21,7 @@ export class TransactionsService {
       throw new NotFoundException('Account not found');
     }
 
-    // Validate the transaction based on type
+    
     switch (createTransactionDto.type) {
       case TransactionType.DEPOSIT:
         if (createTransactionDto.amount <= 0) {
@@ -35,7 +35,7 @@ export class TransactionsService {
         break;
     }
 
-    // Create and save transaction first
+    // Create and save the transaction first
     const transaction = this.transactionsRepository.create({
       ...createTransactionDto,
       account: account,
