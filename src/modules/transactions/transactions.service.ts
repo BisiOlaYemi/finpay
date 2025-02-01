@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, forwardRef, Inject, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transaction, TransactionType, TransactionStatus } from './entities/transaction.entity';
@@ -10,17 +10,18 @@ export class TransactionsService {
   constructor(
     @InjectRepository(Transaction)
     private transactionsRepository: Repository<Transaction>,
-    private accountsService: AccountsService
+    @Inject(forwardRef(() => AccountsService)) 
+    private accountsService: AccountsService,
   ) {}
 
-  async createTransaction(
-    createTransactionDto: CreateTransactionDto
-  ): Promise<Transaction> {
-    const account = await this.accountsService.findAccountById(
-      createTransactionDto.accountId
-    );
+  async createTransaction(createTransactionDto: CreateTransactionDto): Promise<Transaction> {
+    const account = await this.accountsService.findAccountById(createTransactionDto.accountId);
 
-    // Validate transaction based on type
+    if (!account) {
+      throw new NotFoundException('Account not found');
+    }
+
+    // Validate the transaction based on type
     switch (createTransactionDto.type) {
       case TransactionType.DEPOSIT:
         if (createTransactionDto.amount <= 0) {
@@ -34,26 +35,26 @@ export class TransactionsService {
         break;
     }
 
-    // Create transaction
+    // Create and save transaction first
     const transaction = this.transactionsRepository.create({
       ...createTransactionDto,
       account: account,
-      status: TransactionStatus.PENDING
+      accountId: account.id,  
+      status: TransactionStatus.COMPLETED  
     });
 
-    // Update account balance
-    const balanceChange = this.calculateBalanceChange(
-      createTransactionDto.type, 
-      createTransactionDto.amount
-    );
+    const savedTransaction = await this.transactionsRepository.save(transaction);
+
+    // Update account balance directly using query builder to ensure accuracy
     await this.accountsService.updateBalance(
-      createTransactionDto.accountId, 
-      balanceChange
+      account.id,
+      this.calculateBalanceChange(createTransactionDto.type, createTransactionDto.amount)
     );
 
-    // Save and return transaction
-    return this.transactionsRepository.save(transaction);
+    return savedTransaction;
   }
+
+    
 
   private calculateBalanceChange(
     type: TransactionType, 
@@ -67,7 +68,7 @@ export class TransactionsService {
       case TransactionType.PAYMENT:
         return -amount;
       case TransactionType.TRANSFER:
-        return 0; // Handled separately
+        return 0; 
       default:
         return 0;
     }

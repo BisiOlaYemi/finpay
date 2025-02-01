@@ -10,6 +10,8 @@ import { PaymentsModule } from './modules/payments/payments.module';
 
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
+import { VirtualCardsModule } from './modules/virtual-cards/virtual-cards.module';
+
 
 @Module({
   imports: [
@@ -38,7 +40,8 @@ import jwtConfig from './config/jwt.config';
     AccountsModule,
     TransactionsModule,
     InvoicesModule,
-    PaymentsModule
+    PaymentsModule,
+    VirtualCardsModule
   ],
   controllers: [],
   providers: []

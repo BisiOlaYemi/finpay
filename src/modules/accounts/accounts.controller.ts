@@ -38,5 +38,31 @@ import {
     ) {
       return this.accountsService.findAccountById(accountId);
     }
+
+  @Post(':id/deposit')
+  @UseGuards(JwtAuthGuard)
+  depositToAccount(
+    @Param('id') accountId: string,
+    @Body() depositDto: { amount: number, description?: string }
+  ) {
+    return this.accountsService.deposit(
+      accountId, 
+      depositDto.amount, 
+      depositDto.description
+    );
   }
+
+  @Post(':id/withdraw')
+  @UseGuards(JwtAuthGuard)
+  withdrawFromAccount(
+    @Param('id') accountId: string,
+    @Body() withdrawDto: { amount: number, description?: string }
+  ) {
+    return this.accountsService.withdraw(
+      accountId, 
+      withdrawDto.amount, 
+      withdrawDto.description
+    );
+  }
+}
   

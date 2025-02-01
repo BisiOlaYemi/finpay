@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, JoinColumn } from 'typeorm';
 import { Account } from '../../accounts/entities/account.entity';
 
 export enum TransactionType {
@@ -43,8 +43,12 @@ export class Transaction {
   @Column({ nullable: true })
   externalReference?: string;
 
-  @ManyToOne(() => Account, account => account.transactions)
+  @ManyToOne(() => Account, account => account.transactions, { eager: false })
+  @JoinColumn({ name: 'accountId' })
   account: Account;
+
+  @Column()
+  accountId: string;
 
   @CreateDateColumn()
   createdAt: Date;
