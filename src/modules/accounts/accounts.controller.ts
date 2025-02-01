@@ -5,12 +5,15 @@ import {
     Param, 
     Body, 
     UseGuards, 
-    Request 
+    Request, 
+    Query
   } from '@nestjs/common';
   import { AccountsService } from './accounts.service';
   import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
   import { CreateAccountDto } from './dto/create-account.dto';
-  import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+  import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { StatementResponseDto } from './dto/statement-response.dto';
+import { StatementQueryDto } from './dto/statement-query.dto';
   
   @ApiTags('accounts')
   @ApiBearerAuth()
@@ -64,5 +67,20 @@ import {
       withdrawDto.description
     );
   }
+
+  @Get(':id/statement')
+  @ApiOperation({ summary: 'Get account statement' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Account statement generated successfully',
+    type: StatementResponseDto 
+  })
+  async getAccountStatement(
+    @Param('id') accountId: string,
+    @Query() query: StatementQueryDto
+  ): Promise<StatementResponseDto> {
+    return this.accountsService.generateStatement(accountId, query);
+  }
+
 }
   

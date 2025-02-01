@@ -4,8 +4,10 @@ import { Repository } from 'typeorm';
 import { Account, AccountType, Currency } from './entities/account.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateAccountDto } from './dto/create-account.dto';
-import { TransactionType } from '../transactions/entities/transaction.entity';
+import { Transaction, TransactionType } from '../transactions/entities/transaction.entity';
 import { TransactionsService } from '../transactions/transactions.service';
+import { StatementQueryDto } from './dto/statement-query.dto';
+import { StatementResponseDto } from './dto/statement-response.dto';
 
 @Injectable()
 export class AccountsService {
@@ -13,7 +15,9 @@ export class AccountsService {
     @InjectRepository(Account)
     private accountsRepository: Repository<Account>,
     @Inject(forwardRef(() => TransactionsService))
-    private transactionsService: TransactionsService
+    private transactionsService: TransactionsService,
+    @InjectRepository(Transaction)
+    private transactionsRepository: Repository<Transaction>
   ) {}
 
   async createAccount(
@@ -148,5 +152,83 @@ export class AccountsService {
       description: description || 'Deposit'
     });
   }
+
+  async generateStatement(
+    accountId: string,
+    query: StatementQueryDto
+  ): Promise<StatementResponseDto> {
+    const account = await this.accountsRepository.findOne({
+      where: { id: accountId },
+      relations: ['transactions']
+    });
+
+    if (!account) {
+      throw new NotFoundException('Account not found');
+    }
+
+    const startDate = query.startDate || new Date(new Date().setMonth(new Date().getMonth() - 1));
+    const endDate = query.endDate || new Date();
+
+    // Get transactions for the period
+    const transactions = await this.transactionsRepository
+      .createQueryBuilder('transaction')
+      .where('transaction.accountId = :accountId', { accountId })
+      .andWhere('transaction.createdAt BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      })
+      .orderBy('transaction.createdAt', 'DESC')
+      .skip(query.offset)
+      .take(query.limit)
+      .getMany();
+
+    // Calculate balances and totals
+    const { totalCredits, totalDebits } = this.calculateTransactionTotals(transactions);
+
+    // Get starting balance (balance before start date)
+    const startingBalance = await this.calculateBalanceAtDate(accountId, startDate);
+
+    return {
+      accountNumber: account.accountNumber,
+      currency: account.currency,
+      startingBalance,
+      endingBalance: startingBalance + totalCredits + totalDebits,
+      transactions,
+      statementPeriod: {
+        from: startDate,
+        to: endDate,
+      },
+      totalCredits,
+      totalDebits,
+    };
+  }
+
+  private calculateTransactionTotals(transactions: Transaction[]) {
+    return transactions.reduce(
+      (acc, transaction) => {
+        if (transaction.type === TransactionType.DEPOSIT || 
+            transaction.type === TransactionType.REFUND) {
+          acc.totalCredits += transaction.amount;
+        } else if (transaction.type === TransactionType.WITHDRAWAL || 
+                   transaction.type === TransactionType.PAYMENT) {
+          acc.totalDebits -= transaction.amount;
+        }
+        return acc;
+      },
+      { totalCredits: 0, totalDebits: 0 }
+    );
+  }
+
+  private async calculateBalanceAtDate(accountId: string, date: Date): Promise<number> {
+    const transactions = await this.transactionsRepository
+      .createQueryBuilder('transaction')
+      .where('transaction.accountId = :accountId', { accountId })
+      .andWhere('transaction.createdAt < :date', { date })
+      .getMany();
+
+    const { totalCredits, totalDebits } = this.calculateTransactionTotals(transactions);
+    return totalCredits + totalDebits;
+  }
+
 
 }
